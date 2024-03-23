@@ -1,0 +1,26 @@
+1. Looking at the backtrace output, which function called syscall?
+- Hàm ‘syscall’ được gọi bởi hàm ‘usertrap’
+
+
+2. What is the value of p->trapframe->a7 and what does that value represent?
+- Giá trị của p->trapframe->a7 là 7 
+- Giá trị này thể hiện việc hệ điều hành chuẩn bị thực hiện system call
+có số thứ tự là 7
+
+
+3. What was the previous mode that the CPU was in?
+- CPU đã và đang hoạt động ở chế độ user
+
+
+4. Write down the assembly instruction the kernel is panicing at. Which register corresponds to the variable num?
+- Thanh ghi đại diện cho biến num là a3
+
+
+5. Why does the kernel crash? Is that confirmed by the value in scause above?
+- The kernel crash vì nó cố gắng truy cập hoặc sửa đổi vị trí bộ nhớ tại địa chỉ `0`
+- Với giá trị `scause` có thể xác nhận loại ngoại lệ đã xảy ra bằng cách tính bit Interupt và WLRL, sau đó tra bảng các giá trị của scause
+
+
+6. What is the name of the binary that was running when the kernel paniced? What is its process id (pid)?
+- Tên của đoạn nhị phân đang chạy khi kernel bị panic là "initcode\000\000\000\000\000\000\000"
+- Id (pid) của đoạn nhị phân đang chạy khi kernel bị panic là "1"
