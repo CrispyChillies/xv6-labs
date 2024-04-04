@@ -1,0 +1,5 @@
+Page 0: chứa data và text của tiến trình
+Page 1: là guard page để bảo vệ stack ở page 2 khỏi page 0 overflow. 
+Tiến trình chạy ở user mode không thể đọc/ghi lên page này (mặc dù page này vẫn present đối với user memory).
+Page 2: là stack của tiến trình
+Page 3 đến page cuối: heap, trapframe, trampoline

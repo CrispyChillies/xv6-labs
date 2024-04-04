@@ -288,8 +288,6 @@ fork(void)
     return -1;
   }
 
-  np->trace_mask = p->trace_mask;
-
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -448,12 +446,10 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
+  
   c->proc = 0;
   for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting.
+    // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
     for(p = proc; p < &proc[NPROC]; p++) {
@@ -527,11 +523,8 @@ forkret(void)
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
-    fsinit(ROOTDEV);
-
     first = 0;
-    // ensure other cores see first=0.
-    __sync_synchronize();
+    fsinit(ROOTDEV);
   }
 
   usertrapret();
@@ -687,18 +680,4 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
-}
-
-uint64
-nproc()
-{
-  uint64 count = 0;
-  struct proc *p;
-  for (p = proc; p < &proc[NPROC]; p++){
-    acquire(&p->lock);
-    if (p->state != UNUSED) ++count;
-    release(&p->lock);
-  }
-
-  return count;
 }
