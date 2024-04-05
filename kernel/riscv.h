@@ -1,3 +1,5 @@
+#define PTE_U (1L << 4) // user can access
+#define PTE_A (1L << 6)
 #ifndef __ASSEMBLER__
 
 // which hart (core) is this?
