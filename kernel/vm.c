@@ -136,8 +136,9 @@ kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
-// physical addresses starting at pa. va and size might not
-// be page-aligned. Returns 0 on success, -1 if walk() couldn't
+// physical addresses starting at pa.
+// va and size MUST be page-aligned.
+// Returns 0 on success, -1 if walk() couldn't
 // allocate a needed page-table page.
 int
 mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
@@ -145,11 +146,17 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   uint64 a, last;
   pte_t *pte;
 
+  if((va % PGSIZE) != 0)
+    panic("mappages: va not aligned");
+
+  if((size % PGSIZE) != 0)
+    panic("mappages: size not aligned");
+
   if(size == 0)
     panic("mappages: size");
   
-  a = PGROUNDDOWN(va);
-  last = PGROUNDDOWN(va + size - 1);
+  a = va;
+  last = va + size - PGSIZE;
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
@@ -352,12 +359,17 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+  pte_t *pte;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
+    if(va0 >= MAXVA)
       return -1;
+    pte = walk(pagetable, va0, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
+       (*pte & PTE_W) == 0)
+      return -1;
+    pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -438,38 +450,27 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-// Print information of a page table and its lower level page table
-void
-print_pagetable(pagetable_t pagetable, int level)
-{
-  // print all the PTE
-  for (int i = 0; i < 512; ++i)
-  {
+
+void printwalk(pagetable_t pagetable,int level){
+    for(int i = 0; i < 512; i++){
     pte_t pte = pagetable[i];
-    // if this PTE is valid then we print out its info
-    if (pte & PTE_V)  
-    {
-      for (int j = 0; j <= level; ++j)
-      {
-        printf(" ..");
+    if(pte & PTE_V){
+      uint64 child = PTE2PA(pte);
+      switch (level) {
+          case 2: printf("..");break;
+          case 1: printf(".. ..");break;
+          case 0: printf(".. .. ..");break;
       }
-      
-      // print the PTE's info
-      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
-    }
-    // if this PTE is valid but neither writtable or readable or executable, then it points to another lower-level page table
-    // walk down to the lower level
-    if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0)
-    {
-      uint64 child = PTE2PA(pte); // get the physical address of the child
-      print_pagetable((pagetable_t)child, level + 1);
-    }
+
+      printf("%d: pte %p pa %p\n",i,pte,PTE2PA(pte));
+      if ((pte & (PTE_R|PTE_W|PTE_X))==0){
+        printwalk((pagetable_t)child,level-1);
+      }
+    } 
   }
 }
-
-void
-vmprint(pagetable_t pagetable)
-{
-  printf("page table %p\n", pagetable);
-  print_pagetable(pagetable, 0);
+void vmprint(pagetable_t pagetble){
+      printf("TRAMPOLINE %p, MAX %p,Page size %p\n",TRAMPOLINE,MAXVA,PGSIZE);
+      printf("page table %p\n",pagetble);
+      printwalk(pagetble, 2);
 }

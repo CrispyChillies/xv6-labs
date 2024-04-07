@@ -18,7 +18,8 @@ sys_exit(void)
 uint64
 sys_getpid(void)
 {
-  return myproc()->pid;
+  return myproc()->usyscall->pid;
+  // return myproc()->pid;
 }
 
 uint64
@@ -70,31 +71,49 @@ sys_sleep(void)
 }
 
 
-#ifdef LAB_PGTBL
+// #ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
 {
-  uint64 startaddr;
-  int npage;
-  uint64 useraddr;
-  argaddr(0, &startaddr);
-  argint(1, &npage);
-  argaddr(2, &useraddr);
+  // lab pgtbl: your code here.
 
-  uint64 bitmask = 0;
-  uint64 complement = ~PTE_A;
-  struct proc *p = myproc();
-  for (int i = 0; i < npage; ++i) {
-    pte_t *pte = walk(p->pagetable, startaddr+i*PGSIZE, 0);
-    if (*pte & PTE_A) {
-      bitmask |= (1 << i);
-      *pte &= complement;
-    }
+  uint64 va;
+  int pnum;
+  uint64 abits_addr;
+  argaddr(0,&va);
+  argint(1, &pnum);
+  argaddr(2,&abits_addr);
+  
+
+  struct proc *p=myproc();
+
+  pagetable_t pagetable=p->pagetable;
+  
+  uint64  res=0;
+  
+  if (pnum>=64){
+    pnum=63;
   }
-  copyout(p->pagetable, useraddr, (char *)&bitmask, sizeof(bitmask));
+  pte_t *pte;
+  for(int i=0;i<pnum;i++){
+    if (va>MAXVA){
+      return -1;
+    }
+    pte=walk(pagetable,va,0);
+    if(*pte&PTE_A){
+      res|=1<<i;
+      *pte&=(~PTE_A);
+    }
+    va+=PGSIZE;
+  }
+
+  if(copyout(p->pagetable,abits_addr,(char *)&res,sizeof(res))!=0){
+    return -1;
+  }
+
   return 0;
 }
-#endif
+// #endif
 
 uint64
 sys_kill(void)
