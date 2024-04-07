@@ -450,27 +450,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-
-void printwalk(pagetable_t pagetable,int level){
-    for(int i = 0; i < 512; i++){
+// Print information of a page table and its lower level page table
+void print_pagetable(pagetable_t pagetable, int level)
+{
+  // print all the PTE
+  for (int i = 0; i < 512; ++i)
+  {
     pte_t pte = pagetable[i];
-    if(pte & PTE_V){
-      uint64 child = PTE2PA(pte);
-      switch (level) {
-          case 2: printf("..");break;
-          case 1: printf(".. ..");break;
-          case 0: printf(".. .. ..");break;
+    // if this PTE is valid then we print out its info
+    if (pte & PTE_V)
+    {
+      for (int j = 0; j <= level; ++j)
+      {
+        printf(" ..");
       }
 
-      printf("%d: pte %p pa %p\n",i,pte,PTE2PA(pte));
-      if ((pte & (PTE_R|PTE_W|PTE_X))==0){
-        printwalk((pagetable_t)child,level-1);
-      }
-    } 
+      // print the PTE's info
+      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+    }
+    // if this PTE is valid but neither writtable or readable or executable, then it points to another lower-level page table
+    // walk down to the lower level
+    if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0)
+    {
+      uint64 child = PTE2PA(pte); // get the physical address of the child
+      print_pagetable((pagetable_t)child, level + 1);
+    }
   }
 }
-void vmprint(pagetable_t pagetble){
-      printf("TRAMPOLINE %p, MAX %p,Page size %p\n",TRAMPOLINE,MAXVA,PGSIZE);
-      printf("page table %p\n",pagetble);
-      printwalk(pagetble, 2);
+
+void vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", pagetable);
+  print_pagetable(pagetable, 0);
 }
