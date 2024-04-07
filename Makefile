@@ -309,6 +309,10 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
+qemu-lldb: $K/kernel .gdbinit fs.img
+	@echo "*** Start QEMU with xv6 suspended. Now run 'lldb' and attach it to the QEMU process." 1>&2
+	$(QEMU) $(QEMUOPTS) -S -s
+
 ifeq ($(LAB),net)
 # try to generate a unique port for the echo server
 SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
