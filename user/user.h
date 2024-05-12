@@ -24,7 +24,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int trace(int);
-int sysinfo(struct sysinfo *info);
+int sysinfo(struct sysinfo *info); // dummy function. This function will recieve arguments from user and send it to the "real" system-call function.
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -1,0 +1,53 @@
+Index: kernel/sysproc.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>#include \"types.h\"\n#include \"riscv.h\"\n#include \"param.h\"\n#include \"defs.h\"\n#include \"memlayout.h\"\n#include \"spinlock.h\"\n#include \"proc.h\"\n\nuint64\nsys_exit(void)\n{\n  int n;\n  argint(0, &n);\n  exit(n);\n  return 0;  // not reached\n}\n\nuint64\nsys_getpid(void)\n{\n  return myproc()->pid;\n}\n\nuint64\nsys_fork(void)\n{\n  return fork();\n}\n\nuint64\nsys_wait(void)\n{\n  uint64 p;\n  argaddr(0, &p);\n  return wait(p);\n}\n\nuint64\nsys_sbrk(void)\n{\n  uint64 addr;\n  int n;\n\n  argint(0, &n);\n  addr = myproc()->sz;\n  if(growproc(n) < 0)\n    return -1;\n  return addr;\n}\n\nuint64\nsys_sleep(void)\n{\n  int n;\n  uint ticks0;\n\n\n  argint(0, &n);\n  acquire(&tickslock);\n  ticks0 = ticks;\n  while(ticks - ticks0 < n){\n    if(killed(myproc())){\n      release(&tickslock);\n      return -1;\n    }\n    sleep(&ticks, &tickslock);\n  }\n  release(&tickslock);\n  return 0;\n}\n\n\n#ifdef LAB_PGTBL\nint\nsys_pgaccess(void)\n{\n  uint64 startaddr;\n  int npage;\n  uint64 useraddr;\n  argaddr(0, &startaddr);\n  argint(1, &npage);\n  argaddr(2, &useraddr);\n\n  uint64 bitmask = 0;\n  uint64 complement = ~PTE_A;\n  struct proc *p = myproc();\n  for (int i = 0; i < npage; ++i) {\n    pte_t *pte = walk(p->pagetable, startaddr+i*PGSIZE, 0);\n    if (*pte & PTE_A) {\n      bitmask |= (1 << i);\n      *pte &= complement;\n    }\n  }\n  copyout(p->pagetable, useraddr, (char *)&bitmask, sizeof(bitmask));\n  return 0;\n}\n#endif\n\nuint64\nsys_kill(void)\n{\n  int pid;\n\n  argint(0, &pid);\n  return kill(pid);\n}\n\n// return how many clock tick interrupts have occurred\n// since start.\nuint64\nsys_uptime(void)\n{\n  uint xticks;\n\n  acquire(&tickslock);\n  xticks = ticks;\n  release(&tickslock);\n  return xticks;\n}\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/kernel/sysproc.c b/kernel/sysproc.c
+--- a/kernel/sysproc.c	(revision db907089aca594cbe84a3f2c242d085713803513)
++++ b/kernel/sysproc.c	(date 1712473829143)
+@@ -69,8 +69,7 @@
+   return 0;
+ }
+ 
+-
+-#ifdef LAB_PGTBL
++// #ifdef LAB_PGTBL
+ int
+ sys_pgaccess(void)
+ {
+@@ -94,7 +93,7 @@
+   copyout(p->pagetable, useraddr, (char *)&bitmask, sizeof(bitmask));
+   return 0;
+ }
+-#endif
++// #endif
+ 
+ uint64
+ sys_kill(void)
+Index: kernel/riscv.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>#define PTE_U (1L << 4) // user can access\n#define PTE_A (1L << 6)\n#ifndef __ASSEMBLER__\n\n// which hart (core) is this?\nstatic inline uint64\nr_mhartid()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, mhartid\" : \"=r\" (x) );\n  return x;\n}\n\n// Machine Status Register, mstatus\n\n#define MSTATUS_MPP_MASK (3L << 11) // previous mode.\n#define MSTATUS_MPP_M (3L << 11)\n#define MSTATUS_MPP_S (1L << 11)\n#define MSTATUS_MPP_U (0L << 11)\n#define MSTATUS_MIE (1L << 3)    // machine-mode interrupt enable.\n\nstatic inline uint64\nr_mstatus()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, mstatus\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_mstatus(uint64 x)\n{\n  asm volatile(\"csrw mstatus, %0\" : : \"r\" (x));\n}\n\n// machine exception program counter, holds the\n// instruction address to which a return from\n// exception will go.\nstatic inline void \nw_mepc(uint64 x)\n{\n  asm volatile(\"csrw mepc, %0\" : : \"r\" (x));\n}\n\n// Supervisor Status Register, sstatus\n\n#define SSTATUS_SPP (1L << 8)  // Previous mode, 1=Supervisor, 0=User\n#define SSTATUS_SPIE (1L << 5) // Supervisor Previous Interrupt Enable\n#define SSTATUS_UPIE (1L << 4) // User Previous Interrupt Enable\n#define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable\n#define SSTATUS_UIE (1L << 0)  // User Interrupt Enable\n\nstatic inline uint64\nr_sstatus()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, sstatus\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_sstatus(uint64 x)\n{\n  asm volatile(\"csrw sstatus, %0\" : : \"r\" (x));\n}\n\n// Supervisor Interrupt Pending\nstatic inline uint64\nr_sip()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, sip\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_sip(uint64 x)\n{\n  asm volatile(\"csrw sip, %0\" : : \"r\" (x));\n}\n\n// Supervisor Interrupt Enable\n#define SIE_SEIE (1L << 9) // external\n#define SIE_STIE (1L << 5) // timer\n#define SIE_SSIE (1L << 1) // software\nstatic inline uint64\nr_sie()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, sie\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_sie(uint64 x)\n{\n  asm volatile(\"csrw sie, %0\" : : \"r\" (x));\n}\n\n// Machine-mode Interrupt Enable\n#define MIE_MEIE (1L << 11) // external\n#define MIE_MTIE (1L << 7)  // timer\n#define MIE_MSIE (1L << 3)  // software\nstatic inline uint64\nr_mie()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, mie\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_mie(uint64 x)\n{\n  asm volatile(\"csrw mie, %0\" : : \"r\" (x));\n}\n\n// supervisor exception program counter, holds the\n// instruction address to which a return from\n// exception will go.\nstatic inline void \nw_sepc(uint64 x)\n{\n  asm volatile(\"csrw sepc, %0\" : : \"r\" (x));\n}\n\nstatic inline uint64\nr_sepc()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, sepc\" : \"=r\" (x) );\n  return x;\n}\n\n// Machine Exception Delegation\nstatic inline uint64\nr_medeleg()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, medeleg\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_medeleg(uint64 x)\n{\n  asm volatile(\"csrw medeleg, %0\" : : \"r\" (x));\n}\n\n// Machine Interrupt Delegation\nstatic inline uint64\nr_mideleg()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, mideleg\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_mideleg(uint64 x)\n{\n  asm volatile(\"csrw mideleg, %0\" : : \"r\" (x));\n}\n\n// Supervisor Trap-Vector Base Address\n// low two bits are mode.\nstatic inline void \nw_stvec(uint64 x)\n{\n  asm volatile(\"csrw stvec, %0\" : : \"r\" (x));\n}\n\nstatic inline uint64\nr_stvec()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, stvec\" : \"=r\" (x) );\n  return x;\n}\n\n// Machine-mode interrupt vector\nstatic inline void \nw_mtvec(uint64 x)\n{\n  asm volatile(\"csrw mtvec, %0\" : : \"r\" (x));\n}\n\n// Physical Memory Protection\nstatic inline void\nw_pmpcfg0(uint64 x)\n{\n  asm volatile(\"csrw pmpcfg0, %0\" : : \"r\" (x));\n}\n\nstatic inline void\nw_pmpaddr0(uint64 x)\n{\n  asm volatile(\"csrw pmpaddr0, %0\" : : \"r\" (x));\n}\n\n// use riscv's sv39 page table scheme.\n#define SATP_SV39 (8L << 60)\n\n#define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12))\n\n// supervisor address translation and protection;\n// holds the address of the page table.\nstatic inline void \nw_satp(uint64 x)\n{\n  asm volatile(\"csrw satp, %0\" : : \"r\" (x));\n}\n\nstatic inline uint64\nr_satp()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, satp\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_mscratch(uint64 x)\n{\n  asm volatile(\"csrw mscratch, %0\" : : \"r\" (x));\n}\n\n// Supervisor Trap Cause\nstatic inline uint64\nr_scause()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, scause\" : \"=r\" (x) );\n  return x;\n}\n\n// Supervisor Trap Value\nstatic inline uint64\nr_stval()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, stval\" : \"=r\" (x) );\n  return x;\n}\n\n// Machine-mode Counter-Enable\nstatic inline void \nw_mcounteren(uint64 x)\n{\n  asm volatile(\"csrw mcounteren, %0\" : : \"r\" (x));\n}\n\nstatic inline uint64\nr_mcounteren()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, mcounteren\" : \"=r\" (x) );\n  return x;\n}\n\n// machine-mode cycle counter\nstatic inline uint64\nr_time()\n{\n  uint64 x;\n  asm volatile(\"csrr %0, time\" : \"=r\" (x) );\n  return x;\n}\n\n// enable device interrupts\nstatic inline void\nintr_on()\n{\n  w_sstatus(r_sstatus() | SSTATUS_SIE);\n}\n\n// disable device interrupts\nstatic inline void\nintr_off()\n{\n  w_sstatus(r_sstatus() & ~SSTATUS_SIE);\n}\n\n// are device interrupts enabled?\nstatic inline int\nintr_get()\n{\n  uint64 x = r_sstatus();\n  return (x & SSTATUS_SIE) != 0;\n}\n\nstatic inline uint64\nr_sp()\n{\n  uint64 x;\n  asm volatile(\"mv %0, sp\" : \"=r\" (x) );\n  return x;\n}\n\n// read and write tp, the thread pointer, which xv6 uses to hold\n// this core's hartid (core number), the index into cpus[].\nstatic inline uint64\nr_tp()\n{\n  uint64 x;\n  asm volatile(\"mv %0, tp\" : \"=r\" (x) );\n  return x;\n}\n\nstatic inline void \nw_tp(uint64 x)\n{\n  asm volatile(\"mv tp, %0\" : : \"r\" (x));\n}\n\nstatic inline uint64\nr_ra()\n{\n  uint64 x;\n  asm volatile(\"mv %0, ra\" : \"=r\" (x) );\n  return x;\n}\n\n// flush the TLB.\nstatic inline void\nsfence_vma()\n{\n  // the zero, zero means flush all TLB entries.\n  asm volatile(\"sfence.vma zero, zero\");\n}\n\ntypedef uint64 pte_t;\ntypedef uint64 *pagetable_t; // 512 PTEs\n\n#endif // __ASSEMBLER__\n\n#define PGSIZE 4096 // bytes per page\n#define PGSHIFT 12  // bits of offset within a page\n\n#define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))\n#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))\n\n#define PTE_V (1L << 0) // valid\n#define PTE_R (1L << 1)\n#define PTE_W (1L << 2)\n#define PTE_X (1L << 3)\n#define PTE_U (1L << 4) // user can access\n\n// shift a physical address to the right place for a PTE.\n#define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)\n\n#define PTE2PA(pte) (((pte) >> 10) << 12)\n\n#define PTE_FLAGS(pte) ((pte) & 0x3FF)\n\n// extract the three 9-bit page table indices from a virtual address.\n#define PXMASK          0x1FF // 9 bits\n#define PXSHIFT(level)  (PGSHIFT+(9*(level)))\n#define PX(level, va) ((((uint64) (va)) >> PXSHIFT(level)) & PXMASK)\n\n// one beyond the highest possible virtual address.\n// MAXVA is actually one bit less than the max allowed by\n// Sv39, to avoid having to sign-extend virtual addresses\n// that have the high bit set.\n#define MAXVA (1L << (9 + 9 + 9 + 12 - 1))\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/kernel/riscv.h b/kernel/riscv.h
+--- a/kernel/riscv.h	(revision db907089aca594cbe84a3f2c242d085713803513)
++++ b/kernel/riscv.h	(date 1712473829143)
+@@ -1,5 +1,3 @@
+-#define PTE_U (1L << 4) // user can access
+-#define PTE_A (1L << 6)
+ #ifndef __ASSEMBLER__
+ 
+ // which hart (core) is this?
+@@ -345,6 +343,7 @@
+ #define PTE_W (1L << 2)
+ #define PTE_X (1L << 3)
+ #define PTE_U (1L << 4) // user can access
++#define PTE_A (1L << 6)
+ 
+ // shift a physical address to the right place for a PTE.
+ #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
