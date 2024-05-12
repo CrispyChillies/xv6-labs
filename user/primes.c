@@ -10,9 +10,9 @@ void print_primes(int p[], int prime)
     }
 
     uint32 num;
-    read(p[0], &num, sizeof(uint32)); // Đọc số đầu tiên từ pipe vào num. 
+    read(p[0], &num, sizeof(uint32)); // Đọc số đầu tiên từ pipe vào num.
     // Do ta bắt đầu với 2 
-    // nên các giá trị sau của num sau dòng trên đều là số nguyên tố.
+    // nên các giá trị của num sau dòng trên đều là số nguyên tố.
     printf("prime %d\n", num);
 
     int q[2]; // Mảng lưu 2 đầu của pipe khác.
@@ -40,7 +40,7 @@ void print_primes(int p[], int prime)
 
 void primes()
 {
-    int p[2]; // Mảng lưu 2 đầu của pipe.
+    int p[2]; // Mảng lưu 2 đầu của pipe. p[0]: read side and p[1]: write side
     pipe(p); // Khởi tạo pipe.
     // Đẩy hết các số từ 2 đến 35 vào pipe.
     for (uint32 i = 2; i <= 35; ++i)
