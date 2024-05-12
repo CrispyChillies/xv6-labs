@@ -88,6 +88,9 @@ sys_pgaccess(void)
   struct proc *p=myproc();
 
   pagetable_t pagetable=p->pagetable;
+
+  // Print pagetable
+  vmprint(pagetable);
   
   uint64  res=0;
   
@@ -110,6 +113,9 @@ sys_pgaccess(void)
   if(copyout(p->pagetable,abits_addr,(char *)&res,sizeof(res))!=0){
     return -1;
   }
+
+  // Print pagetable
+  vmprint(pagetable);
 
   return 0;
 }
