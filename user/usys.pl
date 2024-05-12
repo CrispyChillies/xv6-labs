@@ -13,10 +13,14 @@ sub entry {
     my $name = shift;
     print ".global $name\n";
     print "${name}:\n";
-    print " li a7, SYS_${name}\n";
-    print " ecall\n";
-    print " ret\n";
+    print " li a7, SYS_${name}\n"; # Place the correct system call number in register a7
+    print " ecall\n"; # This function is used to switch from user to kernel mode.
+    print " ret\n"; # Return from the system call
 }
+
+# In the kernel, the trap handler (in trap.c/void usertrap(void)) identifies that the trap was due to an ecall (system call). 
+# It uses the value in the a7 register to determine which system call needs to be handled. 
+# This mapping of system call numbers to function handlers is set up in syscall.c.
 	
 entry("fork");
 entry("exit");
@@ -42,3 +46,7 @@ entry("uptime");
 
 entry("trace");
 entry("sysinfo");
+# This function generates the assembly code for each system call.
+# The assembly stubs ensure that when a user program calls a system function, 
+# the correct system call number is placed in the appropriate register (a7 for RISC-V), 
+# and then the ecall instruction is used to switch from user to kernel mode.
